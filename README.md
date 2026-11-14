@@ -31,3 +31,12 @@ The results page opens in the same tab. Each image shows its dimensions, file na
 ## Privacy
 
 Grabbo sends no data to its author. The results page loads only the images from the page you ran it on. Image hosts see requests for their images.
+
+## Development
+
+1. Make a branch such as `feature/<description>` or `bug/<description>`.
+2. Make the change test-first.
+3. Bump `VERSION` in `build.py` and add a CHANGELOG entry.
+4. Run `python3 build.py`, then both test suites: `node --test test/*.test.js` and `python3 -m unittest discover -s test`.
+5. To try it in a browser, run `bash go.sh`. It serves the install page and `test/fixture.html` on `localhost:8000`.
+6. Open a pull request.
