@@ -18,12 +18,13 @@ Click the bookmark on a page. Grabbo collects image URLs from the page:
 
 Grabbo loads each URL to measure its real size. It stops waiting when no image has finished loading for 8 seconds. For each picture, it keeps the largest image that loaded. Size comes first. When two images have the same size, it prefers a JPG or PNG over a WebP or AVIF. If no size loads, it keeps the largest declared size and lists it after the others.
 
-The results page opens in the same tab. Each image shows its dimensions, file name and URL, with a "Copy image link" button. The page title links back to the original page. "Copy page link" copies that link as HTML and as plain text.
+The results page opens in the same tab. Each image shows its dimensions, file name and URL, with a "Copy image link" button. When a picture has other loaded files, an "N versions" toggle under its "Copy image link" row opens them, largest first, with the same layout. A version can have the same size as the main image, for example a WebP copy of a PNG. The page title links back to the original page. "Copy page link" copies that link as HTML and as plain text.
 
 ### Limitations
 
 * Grabbo finds only images that are in the page when you click. It does not find originals behind a script, such as a lightbox.
 * It downloads every size it finds, so image-heavy pages use more data.
+* A CSS element with several background images counts as one picture. Its largest image is the main image, and the others show as versions.
 * It does not look inside frames, shadow DOM or inline SVG.
 * A site with a strict Content Security Policy can block Grabbo, its results page or the copy buttons.
 * A site can send WebP at a `.jpg` address, based on the browser's `Accept` header. Grabbo does not fix this. A Safari extension that edits that header (for example ChangeTheHeaders) can fix it.

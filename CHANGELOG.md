@@ -2,6 +2,16 @@
 
 All notable changes to this project are in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-11-17
+
+### Added
+
+* A picture that has other loaded files now shows an "N versions" toggle under its URL field and copy button. The toggle opens the other files under the picture, largest first, each with its own URL and copy button. The browser loads them only when you open the toggle.
+
+### Changed
+
+* The copy buttons keep their width while they show "Copied!", so the URL field next to them does not move.
+
 ## [1.1.0] - 2026-11-17
 
 ### Changed

@@ -82,8 +82,12 @@ async function run(elements, sizes, opts = {}) {
     ev.fn();
   }
   await done;
-  const urls = page ? [...page.matchAll(/<input [^>]*value="([^"]*)"/g)].map((m) => m[1]) : [];
-  return { urls, page, alerts, cursor: root.style.cursor, cursorWhileLoading };
+  // The pictures shown, and the version rows hidden under them.
+  const urlsIn = (html) => [...html.matchAll(/<input [^>]*value="([^"]*)"/g)].map((m) => m[1]);
+  const top = page ? page.replace(/<details>[\s\S]*?<\/details>/g, '') : '';
+  const urls = urlsIn(top);
+  const versions = page ? [...page.matchAll(/<details>([\s\S]*?)<\/details>/g)].map((m) => urlsIn(m[1])) : [];
+  return { urls, versions, page, alerts, cursor: root.style.cursor, cursorWhileLoading };
 }
 
 const meta = (content) => el('meta', { property: 'og:image', content });
@@ -241,4 +245,26 @@ test('a larger avif beats a png of the same picture', async () => {
     [D + 'calendar.Qai6i.avif']: [1776, 1424], [D + 'calendar.1G5uWf.png']: [888, 712], [D + 'calendar.NPz69.webp']: [888, 712],
   });
   assert.deepEqual(urls, [D + 'calendar.Qai6i.avif']);
+});
+
+test('the other loaded sizes of a picture are its versions, largest first; failed and hung ones are left out', async () => {
+  const pic = el('picture');
+  const els = [pic, el('source', { srcset: 'a1.jpg 1x, a2.jpg 2x, a3.webp 2x, gone.jpg 3x, hung.jpg 4x' }, pic), el('img', { src: 'a0.jpg' }, pic), el('img', { src: 'solo.jpg' })];
+  const { urls, versions } = await run(els, {
+    [D + 'a0.jpg']: [100, 100], [D + 'a1.jpg']: [200, 200], [D + 'a2.jpg']: [400, 400], [D + 'a3.webp']: [400, 400], [D + 'solo.jpg']: [50, 50],
+  }, { hang: [D + 'hung.jpg'] });
+  assert.deepEqual(urls, [D + 'a2.jpg', D + 'solo.jpg']);
+  assert.deepEqual(versions, [[D + 'a3.webp', D + 'a1.jpg', D + 'a0.jpg']]);
+});
+
+test('versions stay with their own picture when ranking reverses the page order', async () => {
+  const els = [
+    el('img', { src: 's0.jpg', srcset: 's1.jpg 1x' }),
+    el('img', { src: 'l0.jpg', srcset: 'l1.jpg 1x' }),
+  ];
+  const { urls, versions } = await run(els, {
+    [D + 's0.jpg']: [10, 10], [D + 's1.jpg']: [20, 20], [D + 'l0.jpg']: [100, 100], [D + 'l1.jpg']: [200, 200],
+  });
+  assert.deepEqual(urls, [D + 'l1.jpg', D + 's1.jpg']);
+  assert.deepEqual(versions, [[D + 'l0.jpg'], [D + 's0.jpg']]);
 });
