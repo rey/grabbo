@@ -11,7 +11,7 @@ const base = (over) => Object.assign({
   origin: 'https://e.com/page?a=1&b=2',
   items: [],
 }, over);
-const item = (url, size = null) => ({ url, size });
+const item = (url, size = null, versions = []) => ({ url, size, versions });
 
 const count = (s, sub) => s.split(sub).length - 1;
 const between = (s, open, close) => s.slice(s.indexOf(open), s.indexOf(close));
@@ -117,4 +117,78 @@ test('the stylesheet: spacing in rlh, one font size, one column width', () => {
   assert.ok(css.includes('body{background:ghostwhite}'));
   assert.equal(count(css, '--column:640px'), 1);
   assert.ok(!/\d+px/.test(css.replace('font:16px/1.5', '').replace('--column:640px', '')), 'no other fixed pixel widths');
+});
+
+const ver = (url, size) => ({ url, size });
+const versionsHtml = (it) => between(renderPage(base({ items: [it] })), '<details>', '</details>');
+
+test('a picture with no versions has no details block', () => {
+  assert.ok(!renderPage(base({ items: [item('https://e.com/a.jpg', [10, 10])] })).includes('<details'));
+});
+
+test('the versions link counts the other sizes, singular for one, and sits after the main copy button', () => {
+  const summary = (n) => /<summary>([^<]*)<\/summary>/.exec(renderPage(base({
+    items: [item('https://e.com/a.jpg', [9, 9], Array.from({ length: n }, (_, i) => ver('https://e.com/v' + i + '.jpg', [1, 1])))],
+  })))[1];
+  assert.equal(summary(1), '1 version');
+  assert.equal(summary(3), '3 versions');
+  const out = renderPage(base({ items: [item('https://e.com/a.jpg', [9, 9], [ver('https://e.com/b.jpg', [1, 1])])] }));
+  assert.ok(out.indexOf('>Copy image link</button>') < out.indexOf('<details>'));
+  assert.ok(out.indexOf('</details></li>') > 0, 'the details block ends its picture');
+  assert.ok(!/<summary[^>]*data-action/.test(out), 'the toggle is left to the browser');
+});
+
+test('each version has the same layout as an image, and the image count stays the number of pictures', () => {
+  const url = 'https://e.com/img/small one.png?x=1&y=2';
+  const out = renderPage(base({ items: [item('https://e.com/a.jpg', [9, 9], [ver(url, [320, 200])])] }));
+  const li = between(versionsHtml(item('https://e.com/a.jpg', [9, 9], [ver(url, [320, 200])])), '<li>', '</li>');
+  const input = '<input type="text" readonly aria-label="Image URL" value="' + esc(url) + '">';
+  assert.ok(li.includes('>320×200 · small one.png</figcaption>'));
+  const at = ['<figcaption', '<img ', '</figure>', input, '>Copy image link</button>'].map((t) => li.indexOf(t));
+  assert.ok(at.every((i) => i >= 0), 'all parts exist');
+  assert.deepEqual(at, [...at].sort((x, y) => x - y));
+  assert.ok(out.includes('<h2>1 image</h2>'));
+});
+
+test('version images load lazily, with their size reserved; no size attributes for [0, 0] or an unknown size', () => {
+  const img = (size) => /<img [^>]*>/.exec(versionsHtml(item('https://e.com/a.jpg', [9, 9], [ver('https://e.com/v.jpg', size)])))[0];
+  assert.match(img([320, 200]), /loading="lazy" decoding="async" width="320" height="200"/);
+  for (const size of [[0, 0], null]) {
+    assert.match(img(size), /loading="lazy"/);
+    assert.ok(!/width=|height=/.test(img(size)), String(size));
+  }
+  assert.ok(!/loading=/.test(/<img [^>]*>/.exec(renderPage(base({ items: [item('https://e.com/a.jpg', [9, 9])] })))[0]), 'the main image is not lazy');
+});
+
+test('caption ids stay unique and every described-by points to one, across pictures and versions', () => {
+  const items = [
+    item('https://e.com/a.jpg', [9, 9], [ver('https://e.com/a2.jpg', [1, 1]), ver('https://e.com/a3.jpg', [2, 2])]),
+    item('https://e.com/b.jpg', [9, 9], [ver('https://e.com/b2.jpg', [1, 1])]),
+  ];
+  const out = renderPage(base({ items }));
+  const ids = [...out.matchAll(/ id="([^"]+)"/g)].map((m) => m[1]);
+  assert.equal(new Set(ids).size, ids.length);
+  const refs = [...out.matchAll(/aria-describedby="([^"]+)"/g)].map((m) => m[1]);
+  assert.equal(refs.length, 5);
+  for (const r of refs) assert.ok(ids.includes(r), r);
+});
+
+test('hostile version addresses are escaped', () => {
+  const url = 'https://e.com/a.jpg?q="x"&y=\'1\'';
+  const out = renderPage(base({ items: [item('https://e.com/m.jpg', [9, 9], [ver(url, [1, 1]), ver('https://e.com/%3Cb%3E.png', [1, 1])])] }));
+  for (const raw of [url, '<b>.png']) assert.ok(!out.includes(raw), raw);
+  assert.equal(count(out, esc(url)), 3);
+});
+
+test('the URL field and copy button share one row of equal height, and the versions link is a left-aligned summary under it', () => {
+  const out = renderPage(base({ items: [item('https://e.com/a.jpg', [9, 9], [ver('https://e.com/b.jpg', [1, 1])])] }));
+  assert.match(out, /<div><input [^>]*><button [^>]*>Copy image link<\/button><\/div><details>/);
+  const css = style(out);
+  assert.ok(css.includes('li>div{display:flex;gap:.5rlh}'), 'a flex row stretches the field and button to one height');
+  assert.ok(css.includes('li>div>input{flex:1;min-width:0}') && css.includes('li>div>button{flex:none}'));
+  assert.ok(css.includes('summary{display:inline-block;padding-block:.25rlh;color:royalblue;text-decoration:underline;cursor:pointer;list-style:none}'));
+  assert.ok(css.includes('summary::-webkit-details-marker{display:none}'));
+  assert.ok(css.includes('details>ol{margin-top:.5rlh;padding-inline-start:2rlh}'));
+  assert.ok(css.includes('img{max-width:100%;height:auto}'));
+  assert.ok(!/float|flow-root|grid|contents/.test(css));
 });

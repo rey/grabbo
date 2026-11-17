@@ -4,7 +4,7 @@ import html
 import pathlib
 import re
 
-VERSION = "1.1.0"  # semver: bump on every change to grabbo.js
+VERSION = "1.2.0"  # semver: bump on every change to grabbo.js
 NAME = "Grabbo"
 OUTPUT = "index.html"
 # The rules the results page (grabbo.js) and this page share, so the two look alike.

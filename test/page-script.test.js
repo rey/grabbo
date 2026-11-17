@@ -11,7 +11,7 @@ const tick = () => new Promise((r) => setImmediate(r));
 
 // A fake element with the few things the page script uses. matches() knows tag names and [data-action].
 const el = (tag, dataset = {}, parent = null) => ({
-  tag, dataset, parent, textContent: tag === 'button' ? 'Copy' : '', calls: [],
+  tag, dataset, parent, textContent: tag === 'button' ? 'Copy' : '', calls: [], style: {}, offsetWidth: 140,
   matches(sel) { return sel === this.tag || (sel === '[data-action]' && 'action' in this.dataset); },
   closest(sel) { for (let n = this; n; n = n.parent) if (n.matches(sel)) return n; return null; },
   focus() { this.calls.push('focus'); },
@@ -153,6 +153,13 @@ test('second click within 2s: label returns to the original after all timers run
   assert.equal(btn.textContent, 'Copied!');
   for (const t of env.timers) if (!t.cleared) t.fn();
   assert.equal(btn.textContent, 'Copy');
+});
+
+test('the button keeps its width while the label changes, so the row does not move', async () => {
+  const env = setup();
+  const { btn } = await env.click('copy', LINK);
+  assert.equal(btn.textContent, 'Copied!');
+  assert.equal(btn.style.minWidth, '140px');
 });
 
 test('the status message is cleared when the label resets, so a repeat copy is announced again', async () => {

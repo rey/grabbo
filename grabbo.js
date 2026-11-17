@@ -67,11 +67,18 @@
   };
 
   // One result per picture: measured first, then declared-only. Declared-only with no size is dropped.
+  // Each result keeps the entries of its picture, so versionsOf can list the others.
   const rankPictures = (pictures, sizes) => {
-    const best = pictures.map((g) => pickBest(g, sizes)).filter((b) => b.measured || b.score > 0);
+    const best = pictures.map((g) => ({ ...pickBest(g, sizes), entries: g })).filter((b) => b.measured || b.score > 0);
     const byScore = (a, b) => b.score - a.score;
     return [...best.filter((b) => b.measured).sort(byScore), ...best.filter((b) => !b.measured).sort(byScore)];
   };
+
+  // The other files of a picture that loaded, largest first. A tie keeps the page order.
+  const versionsOf = (entries, sizes, bestUrl) => entries
+    .filter(([url]) => url !== bestUrl && sizes.get(url))
+    .map(([url]) => ({ url, size: sizes.get(url) }))
+    .sort((a, b) => b.size[0] * b.size[1] - a.size[0] * a.size[1]);
 
   // Merge a later srcset descriptor into an existing entry for the same URL.
   // A non-zero declared value is never overwritten by zero.
@@ -115,7 +122,11 @@
     const copy = (btn, p) => {
       const done = (ok) => {
         const word = ok ? 'Copied!' : 'Failed';
-        if (btn.dataset.label === undefined) btn.dataset.label = btn.textContent;
+        if (btn.dataset.label === undefined) {
+          btn.dataset.label = btn.textContent;
+          // Keep the width, so the label change does not move the other items in the row.
+          btn.style.minWidth = btn.offsetWidth + 'px';
+        }
         btn.textContent = word;
         const status = document.getElementById('status');
         if (status) status.textContent = word;
@@ -164,8 +175,9 @@
     });
   };
 
-  // The results page's whole stylesheet. One --column value sets the width of the page; the image and URL field fill it.
-  // The links are the h1 title link and the footer link, and the only input is the URL field, so they are styled by element.
+  // The results page's whole stylesheet. One --column value sets the width of the page; the image and the URL row fill it.
+  // The links are the h1 title link and the footer link, the only input is the URL field, and the only div in a list item is the row
+  // that holds the field and the copy button, so they are styled by element.
   const STYLE = [
     ':root{font:16px/1.5 system-ui,sans-serif;color:#202020;--column:640px}',
     '*{box-sizing:border-box;margin:0}',
@@ -184,9 +196,15 @@
     'h1,h2{font-size:1rem}',
     'body{background:ghostwhite}',
     'img,input{display:block}',
-    'img{max-width:100%}',
+    'img{max-width:100%;height:auto}',
     'input{width:100%}',
     'button{padding:.25rlh .5rlh}',
+    'li>div{display:flex;gap:.5rlh}',
+    'li>div>input{flex:1;min-width:0}',
+    'li>div>button{flex:none}',
+    'summary{display:inline-block;padding-block:.25rlh;color:royalblue;text-decoration:underline;cursor:pointer;list-style:none}',
+    'summary::-webkit-details-marker{display:none}',
+    'details>ol{margin-top:.5rlh;padding-inline-start:2rlh}',
     'footer{margin-top:4rlh}',
     '.vh{position:absolute;clip-path:inset(50%)}',
   ].join('');
@@ -201,19 +219,31 @@
     return name.replace(/[\p{Cc}\p{Cf}]/gu, '');
   };
 
-  // Builds the results page as a string. Every dynamic value goes through esc().
+  // One image of the results page: caption, picture, URL field and copy button. A version also gets
+  // its size reserved and loads only when its block is opened.
+  const renderResult = (it, capId, isVersion) => {
+    const u = esc(it.url);
+    const hasSize = it.size && it.size[0] && it.size[1];
+    const dims = hasSize ? it.size[0] + '×' + it.size[1] : '';
+    const cap = [dims, fileNameOf(it.url)].filter(Boolean).map(esc).join(' · ');
+    const extra = isVersion ? ' loading="lazy" decoding="async"' + (hasSize ? ' width="' + +it.size[0] + '" height="' + +it.size[1] + '"' : '') : '';
+    return '<figure><figcaption' + (cap ? ' id="' + capId + '"' : '') + '>' + cap + '</figcaption>' +
+      '<img src="' + u + '" alt="' + esc(fileNameOf(it.url)) + '"' + extra + '>' +
+      '</figure>' +
+      '<div><input type="text" readonly aria-label="Image URL" value="' + u + '">' +
+      '<button type="button"' + (cap ? ' aria-describedby="' + capId + '"' : '') + ' data-action="copy" data-url="' + u + '">Copy image link</button></div>';
+  };
+
+  // Builds the results page as a string. Every dynamic value goes through esc() or is a number.
   const renderPage = (d) => {
     const n = d.items.length;
     const figures = d.items.map((it, i) => {
-      const u = esc(it.url);
-      const dims = it.size && it.size[0] && it.size[1] ? it.size[0] + '×' + it.size[1] : '';
-      const cap = [dims, fileNameOf(it.url)].filter(Boolean).map(esc).join(' · ');
-      const capId = 'cap-' + i;
-      return '<li><figure><figcaption' + (cap ? ' id="' + capId + '"' : '') + '>' + cap + '</figcaption>' +
-        '<img src="' + u + '" alt="' + esc(fileNameOf(it.url)) + '">' +
-        '</figure>' +
-        '<input type="text" readonly aria-label="Image URL" value="' + u + '">' +
-        '<button type="button"' + (cap ? ' aria-describedby="' + capId + '"' : '') + ' data-action="copy" data-url="' + u + '">Copy image link</button></li>';
+      const vs = it.versions || [];
+      const more = vs.length
+        ? '<details><summary>' + vs.length + (vs.length === 1 ? ' version' : ' versions') + '</summary><ol>' +
+          vs.map((v, j) => '<li>' + renderResult(v, 'cap-' + i + '-' + j, true) + '</li>').join('') + '</ol></details>'
+        : '';
+      return '<li>' + renderResult(it, 'cap-' + i, false) + more + '</li>';
     }).join('');
     return '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
       '<title>Grabbo: ' + esc(String(d.title).trim() || d.origin) + '</title>' +
@@ -231,7 +261,7 @@
       '</body></html>';
   };
 
-  const pure = { parseDescriptor, parseSrcset, declaredScore, pickBest, rankPictures, mergeEntry, esc, buildCopyPayload, pageScript, fileNameOf, renderPage };
+  const pure = { parseDescriptor, parseSrcset, declaredScore, pickBest, rankPictures, versionsOf, mergeEntry, esc, buildCopyPayload, pageScript, fileNameOf, renderPage };
   const hook = globalThis.__grabboTest;
   // A page element with id="__grabboTest" shows up on window; ignore DOM nodes.
   if (typeof hook === 'object' && hook !== null && !hook.nodeType) { Object.assign(hook, pure); return; }
@@ -328,7 +358,7 @@
     }
   });
 
-  const items = rankPictures(pictures, sizes).map((b) => ({ url: b.url, size: sizes.get(b.url) || null }));
+  const items = rankPictures(pictures, sizes).map((b) => ({ url: b.url, size: sizes.get(b.url) || null, versions: versionsOf(b.entries, sizes, b.url) }));
   const html = renderPage({
     version: VERSION,
     title: document.title,

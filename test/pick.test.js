@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadGrabbo, plain } = require('./load');
 
-const { declaredScore, pickBest, rankPictures, mergeEntry } = loadGrabbo();
+const { declaredScore, pickBest, rankPictures, versionsOf, mergeEntry } = loadGrabbo();
 const info = (w = 0, x = 0) => ({ w, x });
 
 test('pickBest: measured largest area wins', () => {
@@ -170,4 +170,44 @@ test('pickBest: a tie at [0, 0] (loaded, no intrinsic size) still prefers the pn
 test('pickBest: three tied entries give the png or jpg in every useful order', () => {
   assert.strictEqual(pickUrl(['a.png', 'a.webp', 'a.avif']), E + 'a.png');
   assert.strictEqual(pickUrl(['a.avif', 'a.png', 'a.jpg']), E + 'a.png');
+});
+
+test('rankPictures: each result keeps the entries of its picture', () => {
+  const group = [['a', info()], ['b', info()]];
+  const r = rankPictures([group], new Map([['a', [10, 10]], ['b', [20, 20]]]));
+  assert.deepStrictEqual(plain(r[0].entries), plain(group));
+});
+
+test('versionsOf: the other loaded sizes, largest first, with their sizes', () => {
+  const sizes = new Map([['a', [100, 100]], ['b', [300, 200]], ['c', [50, 50]]]);
+  const entries = ['a', 'b', 'c'].map((u) => [u, info()]);
+  assert.deepStrictEqual(plain(versionsOf(entries, sizes, 'b')), [{ url: 'a', size: [100, 100] }, { url: 'c', size: [50, 50] }]);
+});
+
+test('versionsOf: leaves out the best, failed, unmeasured and hung candidates', () => {
+  const sizes = new Map([['best', [100, 100]], ['bad', null], ['ok', [10, 10]]]);
+  const entries = ['best', 'bad', 'ok', 'hung'].map((u) => [u, info(500)]);
+  assert.deepStrictEqual(plain(versionsOf(entries, sizes, 'best')).map((v) => v.url), ['ok']);
+});
+
+test('versionsOf: a same-size WebP is a version, in page order; [0, 0] is kept', () => {
+  const sizes = new Map([['a.jpg', [100, 100]], ['a.webp', [100, 100]], ['a.avif', [100, 100]], ['s.svg', [0, 0]]]);
+  const entries = ['a.jpg', 'a.webp', 'a.avif', 's.svg'].map((u) => [u, info()]);
+  assert.deepStrictEqual(plain(versionsOf(entries, sizes, 'a.jpg')).map((v) => v.url), ['a.webp', 'a.avif', 's.svg']);
+});
+
+test('versionsOf: none for a single candidate, or when the best is only declared', () => {
+  assert.deepStrictEqual(plain(versionsOf([['a', info()]], new Map([['a', [1, 1]]]), 'a')), []);
+  assert.deepStrictEqual(plain(versionsOf([['a', info(900)], ['b', info(400)]], new Map(), 'a')), []);
+});
+
+test('rankPictures: ranking reorders pictures and each keeps its own entries, so versions stay with their picture', () => {
+  const small = [['s0', info()], ['s1', info()]];
+  const large = [['l0', info()], ['l1', info()]];
+  const sizes = new Map([['s0', [10, 10]], ['s1', [20, 20]], ['l0', [100, 100]], ['l1', [200, 200]]]);
+  const r = plain(rankPictures([small, large], sizes));
+  assert.deepStrictEqual(r.map((p) => p.url), ['l1', 's1']);
+  assert.deepStrictEqual(r.map((p) => p.entries.map(([u]) => u)), [['l0', 'l1'], ['s0', 's1']]);
+  assert.deepStrictEqual(plain(versionsOf(r[0].entries, sizes, r[0].url)), [{ url: 'l0', size: [100, 100] }]);
+  assert.deepStrictEqual(plain(versionsOf(r[1].entries, sizes, r[1].url)), [{ url: 's0', size: [10, 10] }]);
 });
