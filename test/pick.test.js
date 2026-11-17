@@ -73,3 +73,101 @@ test('rankPictures: [0,0] (loaded, no intrinsic size) is kept, after measured, b
   assert.deepStrictEqual(r.map((p) => p.url), ['m', 's', 'd']);
   assert.strictEqual(r[1].measured, true);
 });
+
+const E = 'https://e.com/';
+const pickUrl = (names, sizeMap = {}) => {
+  const sizes = new Map(names.map((n) => [E + n, sizeMap[n] || [100, 100]]));
+  return plain(pickBest(names.map((n) => [E + n, info()]), sizes)).url;
+};
+
+test('pickBest: tie prefers png over avif', () => {
+  assert.strictEqual(pickUrl(['a.avif', 'a.png']), E + 'a.png');
+});
+
+test('pickBest: tie prefers png when it comes first', () => {
+  assert.strictEqual(pickUrl(['a.png', 'a.avif']), E + 'a.png');
+});
+
+test('pickBest: tie prefers png over webp then avif', () => {
+  assert.strictEqual(pickUrl(['a.webp', 'a.avif', 'a.png']), E + 'a.png');
+});
+
+test('pickBest: tie prefers jpg over webp', () => {
+  assert.strictEqual(pickUrl(['a.webp', 'a.jpeg']), E + 'a.jpeg');
+});
+
+test('pickBest: extension is not case sensitive', () => {
+  assert.strictEqual(pickUrl(['a.AVIF', 'a.PNG']), E + 'a.PNG');
+});
+
+test('pickBest: larger avif beats smaller png', () => {
+  assert.strictEqual(pickUrl(['a.avif', 'a.png'], { 'a.avif': [200, 200] }), E + 'a.avif');
+});
+
+test('pickBest: jpg and png tie keeps the first', () => {
+  assert.strictEqual(pickUrl(['a.png', 'a.jpg']), E + 'a.png');
+  assert.strictEqual(pickUrl(['a.jpg', 'a.png']), E + 'a.jpg');
+});
+
+test('pickBest: the path decides, not the query or fragment', () => {
+  assert.strictEqual(pickUrl(['a.avif', 'b.png?v=1']), E + 'b.png?v=1');
+  assert.strictEqual(pickUrl(['b.webp', 'a.avif?fb=x.png']), E + 'b.webp');
+  assert.strictEqual(pickUrl(['b.webp', 'a.avif#x.png']), E + 'b.webp');
+});
+
+test('pickBest: a url with no extension is neutral', () => {
+  assert.strictEqual(pickUrl(['a.avif', 'img']), E + 'a.avif');
+  assert.strictEqual(pickUrl(['img', 'a.png']), E + 'img');
+});
+
+test('pickBest: a url with no extension neither replaces nor is replaced, so order matters', () => {
+  assert.strictEqual(pickUrl(['a.avif', 'img', 'a.png']), E + 'a.png');
+  assert.strictEqual(pickUrl(['img', 'a.avif', 'a.png']), E + 'img');
+});
+
+test('pickBest: a data url is neutral', () => {
+  const data = 'data:image/png;base64,AAAA';
+  const sizes = new Map([[E + 'a.avif', [100, 100]], [data, [100, 100]]]);
+  assert.strictEqual(plain(pickBest([[E + 'a.avif', info()], [data, info()]], sizes)).url, E + 'a.avif');
+});
+
+test('pickBest: unmeasured entries keep the first', () => {
+  const r = plain(pickBest([[E + 'a.avif', info(0, 1)], [E + 'a.png', info(0, 1)]], new Map()));
+  assert.strictEqual(r.url, E + 'a.avif');
+});
+
+test('pickBest: tie prefers jpg over avif', () => {
+  assert.strictEqual(pickUrl(['a.avif', 'a.jpg']), E + 'a.jpg');
+});
+
+test('pickBest: an unmeasured png with the same declared score does not replace a measured avif', () => {
+  // The png has no entry in sizes, so it is unmeasured. info(100) declares 100w, which scores 10000, as 100×100 does.
+  const sizes = new Map([[E + 'a.avif', [100, 100]]]);
+  const r = plain(pickBest([[E + 'a.avif', info()], [E + 'a.png', info(100)]], sizes));
+  assert.strictEqual(r.url, E + 'a.avif');
+});
+
+test('pickBest: gif and svg are neutral', () => {
+  assert.strictEqual(pickUrl(['a.webp', 'a.gif']), E + 'a.webp');
+  assert.strictEqual(pickUrl(['a.gif', 'a.png']), E + 'a.gif');
+  assert.strictEqual(pickUrl(['a.avif', 'a.svg']), E + 'a.avif');
+});
+
+test('pickBest: the extension must end the path and follow a dot', () => {
+  assert.strictEqual(pickUrl(['a.webp', 'a.png.webp']), E + 'a.webp');
+  assert.strictEqual(pickUrl(['a.jpg.webp', 'a.jpg']), E + 'a.jpg');
+  assert.strictEqual(pickUrl(['a.avif', 'apng']), E + 'a.avif');
+});
+
+test('pickBest: a webp that follows a png only in the fragment is not a webp', () => {
+  assert.strictEqual(pickUrl(['a.png#x.webp', 'b.png']), E + 'a.png#x.webp');
+});
+
+test('pickBest: a tie at [0, 0] (loaded, no intrinsic size) still prefers the png', () => {
+  assert.strictEqual(pickUrl(['a.avif', 'a.png'], { 'a.avif': [0, 0], 'a.png': [0, 0] }), E + 'a.png');
+});
+
+test('pickBest: three tied entries give the png or jpg in every useful order', () => {
+  assert.strictEqual(pickUrl(['a.png', 'a.webp', 'a.avif']), E + 'a.png');
+  assert.strictEqual(pickUrl(['a.avif', 'a.png', 'a.jpg']), E + 'a.png');
+});

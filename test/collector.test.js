@@ -185,3 +185,60 @@ test('a DOM node under __grabboTest does not trigger the test hook, so the bookm
   const { done } = runGrabbo({ __grabboTest: { nodeType: 1 } });
   await assert.rejects(done, (e) => e.name === 'ReferenceError' && /document/.test(e.message));
 });
+
+test('same size: the png wins over the avif the browser chose', async () => {
+  const pic = el('picture');
+  const els = [
+    pic, el('source', { srcset: 'calendar.NPz69.webp 888w' }, pic),
+    el('img', { currentSrc: 'calendar.Qai6i.avif', srcset: 'calendar.1G5uWf.png 888w' }, pic),
+  ];
+  const { urls } = await run(els, {
+    [D + 'calendar.Qai6i.avif']: [888, 712], [D + 'calendar.1G5uWf.png']: [888, 712], [D + 'calendar.NPz69.webp']: [888, 712],
+  });
+  assert.deepEqual(urls, [D + 'calendar.1G5uWf.png']);
+});
+
+test('same size: a jpg src wins over the avif and webp sources', async () => {
+  const pic = el('picture');
+  const els = [
+    pic, el('source', { srcset: 'x.avif 888w' }, pic), el('source', { srcset: 'x.webp 888w' }, pic),
+    el('img', { currentSrc: 'x.avif', src: 'x.jpg', srcset: 'x.jpg 888w' }, pic),
+  ];
+  const { urls } = await run(els, { [D + 'x.avif']: [888, 712], [D + 'x.webp']: [888, 712], [D + 'x.jpg']: [888, 712] });
+  assert.deepEqual(urls, [D + 'x.jpg']);
+});
+
+test('width descriptors: the largest png wins over the largest avif of the same size', async () => {
+  const pic = el('picture');
+  const els = [
+    pic, el('source', { srcset: 'x.avif 888w, x@2x.avif 1776w' }, pic),
+    el('img', { currentSrc: 'x@2x.avif', src: 'x.png', srcset: 'x.png 888w, x@2x.png 1776w' }, pic),
+  ];
+  const { urls } = await run(els, {
+    [D + 'x.avif']: [888, 712], [D + 'x@2x.avif']: [1776, 1424], [D + 'x.png']: [888, 712], [D + 'x@2x.png']: [1776, 1424],
+  });
+  assert.deepEqual(urls, [D + 'x@2x.png']);
+});
+
+test('a file that two pictures share stays in the first picture, so the second keeps its own avif', async () => {
+  const p1 = el('picture');
+  const p2 = el('picture');
+  const els = [
+    p1, el('img', { currentSrc: 'a.avif', srcset: 'a.png 888w' }, p1),
+    p2, el('img', { src: 'a.png', srcset: 'b.avif 888w' }, p2),
+  ];
+  const { urls } = await run(els, { [D + 'a.avif']: [888, 712], [D + 'a.png']: [888, 712], [D + 'b.avif']: [888, 712] });
+  assert.deepEqual(urls, [D + 'a.png', D + 'b.avif']);
+});
+
+test('a larger avif beats a png of the same picture', async () => {
+  const pic = el('picture');
+  const els = [
+    pic, el('source', { srcset: 'calendar.NPz69.webp 888w' }, pic),
+    el('img', { currentSrc: 'calendar.Qai6i.avif', srcset: 'calendar.1G5uWf.png 888w' }, pic),
+  ];
+  const { urls } = await run(els, {
+    [D + 'calendar.Qai6i.avif']: [1776, 1424], [D + 'calendar.1G5uWf.png']: [888, 712], [D + 'calendar.NPz69.webp']: [888, 712],
+  });
+  assert.deepEqual(urls, [D + 'calendar.Qai6i.avif']);
+});

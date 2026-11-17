@@ -2,6 +2,12 @@
 
 All notable changes to this project are in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-11-17
+
+### Changed
+
+* When a JPG or PNG and a WebP or AVIF have the same size, it now lists the JPG or PNG, because it works in more places. A larger WebP or AVIF still wins, and so does a WebP or AVIF that is the only choice.
+
 ## [1.0.0] - 2026-11-14
 
 ### Added

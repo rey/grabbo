@@ -44,14 +44,22 @@
     return 0;
   };
 
+  // The part of a URL before the first ? or #.
+  const pathOf = (url) => url.split(/[?#]/, 1)[0];
+  const isDerived = (url) => /\.(?:webp|avif)$/i.test(pathOf(url));
+  const isOriginal = (url) => /\.(?:jpe?g|png)$/i.test(pathOf(url));
+
   // Best candidate of one picture. Measured pixel area always beats a declared size.
+  // On a tie, a JPG or PNG replaces a WebP or AVIF, because WebP and AVIF files are usually re-encodes of it.
+  // Any other tie keeps the first entry.
   const pickBest = (entries, sizes) => {
     let best = null;
     for (const [url, info] of entries) {
       const size = sizes.get(url);
       const measured = !!size;
       const score = measured ? size[0] * size[1] : declaredScore(info);
-      if (!best || (measured && !best.measured) || (measured === best.measured && score > best.score)) {
+      const tieToOriginal = measured && best && best.measured && score === best.score && isDerived(best.url) && isOriginal(url);
+      if (!best || (measured && !best.measured) || (measured === best.measured && score > best.score) || tieToOriginal) {
         best = { url, info, score, measured };
       }
     }
