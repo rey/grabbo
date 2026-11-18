@@ -2,6 +2,13 @@
 
 All notable changes to this project are in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.2.1] - 2026-11-18
+
+### Fixed
+
+* The "N versions" toggle no longer adds extra space around itself. The gap above it is now the same as the other gaps in a picture, and the gap below it is the same for every picture.
+* The title in the page header and the "Copy page link" button now share a text baseline.
+
 ## [1.2.0] - 2026-11-17
 
 ### Added

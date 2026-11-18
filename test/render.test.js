@@ -44,6 +44,7 @@ test('the h1 is the page title linked back to the page, with an arrow; an empty 
   assert.ok(header.includes('<a href="' + esc('https://e.com/p?a=1&b=2') + '" data-action="back"><span aria-hidden="true">←</span> My Page</a>'));
   assert.equal(count(out, '<h1>'), 1);
   assert.ok(header.indexOf('</h1>') < header.indexOf('>Copy page link</button>'), 'the button follows the title in the same header');
+  assert.ok(style(out).includes('header{display:flex;flex-wrap:wrap;align-items:baseline;gap:.5rlh 1rlh}'), 'the title and button share a first baseline');
   assert.ok(out.includes('<title>Grabbo: My Page</title>'));
 
   const blank = renderPage(base({ title: '  ', origin: 'https://e.com/p' }));
@@ -186,7 +187,7 @@ test('the URL field and copy button share one row of equal height, and the versi
   const css = style(out);
   assert.ok(css.includes('li>div{display:flex;gap:.5rlh}'), 'a flex row stretches the field and button to one height');
   assert.ok(css.includes('li>div>input{flex:1;min-width:0}') && css.includes('li>div>button{flex:none}'));
-  assert.ok(css.includes('summary{display:inline-block;padding-block:.25rlh;color:royalblue;text-decoration:underline;cursor:pointer;list-style:none}'));
+  assert.ok(css.includes('summary{display:inline-block;color:royalblue;text-decoration:underline;cursor:pointer;list-style:none}'));
   assert.ok(css.includes('summary::-webkit-details-marker{display:none}'));
   assert.ok(css.includes('details>ol{margin-top:.5rlh;padding-inline-start:2rlh}'));
   assert.ok(css.includes('img{max-width:100%;height:auto}'));
